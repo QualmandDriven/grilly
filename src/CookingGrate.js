@@ -13,8 +13,14 @@ class CookingGrate extends React.Component {
             startTime: null,
             remainingTime: new Date(0, 0, 0, 0, 8),
             neededTime: new Date(0, 0, 0, 0, 8),
-            grillKind: null
+            remainingTurns: [],
+            selectedGrillKind: null,
+            selectedGrillLevel: null,
         };
+    }
+
+    componentDidMount() {
+        this.setGrillKind(barbequeData[0].name);
     }
 
     onStartClick = (e) => {
@@ -22,6 +28,7 @@ class CookingGrate extends React.Component {
         if(this.state !== null && this.state.timer !== null) {
             clearInterval(this.state.timer);
         }
+
         let timer = setInterval(this.tick, 300);
         this.setState({timer, startTime: new Date()});
     }
@@ -30,7 +37,8 @@ class CookingGrate extends React.Component {
         console.log("Stop timer");
         if(this.state !== null && this.state.timer !== null) {
             clearInterval(this.state.timer);
-            this.setState({startTime: null, timer: null, remainingTime: new Date(0, 0, 0, 0, 8), neededTime: new Date(0, 0, 0, 0, 8)});
+            this.setState({startTime: null, timer: null, remainingTime: this.state.neededTime});
+            this.setGrillLevel(this.state.selectedGrillLevel.name);
         }
     }
 
@@ -57,26 +65,58 @@ class CookingGrate extends React.Component {
     tick = () => {
         let elapsed = Math.round(new Date() - this.state.startTime);
         let d = moment(this.state.neededTime).subtract(elapsed, "milliseconds");
-        this.setState({remainingTime: d})
+
+        let turns = this.state.remainingTurns;
+        turns[0] = turns[0] - elapsed / 1000;
+        if(turns[0] <= 0) {
+            turns = turns.slice(1, turns.length);
+        }
+
+        console.log(turns);
+        this.setState({remainingTime: d, remainingTurns: turns});
     }
 
     onGrillKindChanged = (e) => {
-        this.setState({grillKind: e.target.value});
+        this.setGrillKind(e.target.value);
+    }
+
+    onGrillLevelChanged = (e) => {
+        this.setGrillLevel(e.target.value);
+    }
+
+    setGrillKind = (name) => {
+        let grillKind = barbequeData.find(b => b.name === name)
+        let grillLevels = grillKind.cookingLevels;
+        // this.setState({selectedGrillKind: grillKind});
+
+        // Set a default grill level
+        //this.setGrillLevel(grillLevels[0].name);
+        let time = new Date(0, 0, 0, 0, 0, grillLevels[0].requiredSeconds);
+        let turns = grillLevels[0].turns.map(t => t.turnAfterSeconds);
+        this.setState({selectedGrillKind: grillKind, selectedGrillLevel: grillLevels[0], neededTime: time, remainingTime: time, remainingTurns: turns});
+    } 
+
+    setGrillLevel = (name) => {
+        let grillLevel = this.state.selectedGrillKind.cookingLevels.find(gl => gl.name === name);
+        let time = new Date(0, 0, 0, 0, 0, grillLevel.requiredSeconds);
+        let turns = grillLevel.turns.map(t => t.turnAfterSeconds);
+        this.setState({selectedGrillLevel: grillLevel, neededTime: time, remainingTime: time, remainingTurns: turns});
     }
 
     render() {
         let playStopButton = this.state.timer === null ? <button onClick={this.onStartClick}>Start</button> : <button onClick={this.onStopClick}>Stop</button>
-        let d = moment(this.state.remainingTime).format("HH:mm:ss");
 
+        // Get all possible kinds (Wammerl, Steak, etc.)
         let grillKinds = barbequeData.map(b => <option key={b.name}>{b.name}</option>);
 
+        // Get grill level of specific or default grill kind
         let grillLevels = null;
-        if(this.state.grillKind !== null) {
-            let grillKind = barbequeData.find(b => b.name === this.state.grillKind)
-            grillLevels = grillKind.cookingLevels.map(c => <option key={c.name}>{c.name}</option>);
+        if(this.state.selectedGrillKind !== null) {
+            grillLevels = this.state.selectedGrillKind.cookingLevels.map(c => <option key={c.name}>{c.name}</option>);
         } else {
             grillLevels = barbequeData[0].cookingLevels.map(c => <option key={c.name}>{c.name}</option>);
         }
+
 
         return (
         <div className="cg">
@@ -92,13 +132,14 @@ class CookingGrate extends React.Component {
             </div>
             <div>
                 Grillpunkt:
-                <select>
+                <select onChange={this.onGrillLevelChanged}>
                     {grillLevels}
                 </select>
             </div>
             <div>
                 <div>
-                    <h4>{d}</h4>
+                    <h4>{moment(this.state.remainingTime).format("HH:mm:ss")}</h4>
+                    {this.state.remainingTurns}
                 </div>
                 <div>
                     {playStopButton}<button onClick={this.onAddClick}>+</button><button onClick={this.onSubtractClick}>-</button>
